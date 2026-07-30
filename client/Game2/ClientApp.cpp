@@ -448,6 +448,18 @@ ClientApp::ExitMode ClientApp::MainLoop()
 				}
 			}
 
+			// Number keys go to the focused scene first, so the starting grid
+			// can use them to set the size of the field. Anything the scene
+			// doesn't consume falls through to the normal control mapping.
+			if (evt.type == SDL_KEYDOWN && !evt.key.repeat && fgScene) {
+				const SDL_Keycode kc = evt.key.keysym.sym;
+				if (kc >= SDLK_0 && kc <= SDLK_9) {
+					if (fgScene->OnDigitKey(static_cast<int>(kc - SDLK_0))) {
+						continue;
+					}
+				}
+			}
+
 			if (evt.type >= SDL_KEYDOWN && evt.type <= SDL_MULTIGESTURE) {
 				// Input events are routed to the InputEventController.
 				controller->ProcessInputEvent(evt);

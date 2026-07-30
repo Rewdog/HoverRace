@@ -116,6 +116,7 @@ protected:
 
 public:
 	void Advance(Util::OS::timestamp_t tick) override;
+	bool OnDigitKey(int digit) override;
 	void Layout() override;
 	void PrepareRender() override;
 	void Render() override;

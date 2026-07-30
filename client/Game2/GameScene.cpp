@@ -119,6 +119,21 @@ void GameScene::Cleanup()
 	VideoServices::SoundServer::ApplyContinuousPlay();
 }
 
+/**
+ * Set the number of bots from the starting grid.
+ *
+ * Only accepted before the race begins; once the field is away, changing it
+ * would drop new craft into a running race.
+ */
+bool GameScene::OnDigitKey(int digit)
+{
+	if (!session) return false;
+	if (session->GetPhase() >= ClientSession::Phase::PLAYING) return false;
+
+	session->SetPendingBots(digit);
+	return true;
+}
+
 void GameScene::ScheduleLoad(std::shared_ptr<Loader> loader)
 {
 	auto rulebook = rules->GetRulebook();

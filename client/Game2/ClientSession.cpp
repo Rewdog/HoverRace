@@ -160,11 +160,14 @@ void ClientSession::Process()
 		clock->Advance();
 	}
 
-	if (!botsSpawned) {
+	if (pendingBots < 0) {
+		pendingBots = rules ? rules->GetBots() : 0;
+	}
+
+	if (!botsSpawned && phase >= Phase::PLAYING) {
 		botsSpawned = true;
-		const int wanted = rules ? rules->GetBots() : 0;
-		if (wanted > 0) {
-			AddBots(wanted);
+		if (pendingBots > 0) {
+			AddBots(pendingBots);
 		}
 	}
 
@@ -264,6 +267,27 @@ void ClientSession::AttachPlayer(int i, std::shared_ptr<Player::Player> player)
 	ch->SetHoverId(i);
 
 	curLevel->InsertElement(ch, startingRoom);
+}
+
+/**
+ * Choose how many bots will race.
+ *
+ * Ignored once they have spawned: the grid is set at the start of the race and
+ * adding racers mid-lap would be worse than refusing.
+ */
+void ClientSession::SetPendingBots(int count)
+{
+	if (botsSpawned) return;
+
+	if (count < 0) count = 0;
+	else if (count > MAX_BOTS) count = MAX_BOTS;
+
+	pendingBots = count;
+
+	std::ostringstream oss;
+	oss << count << (count == 1 ? " bot" : " bots");
+	AddMessage(oss.str().c_str());
+	HR_LOG(info) << "Bots for this race: " << count;
 }
 
 /**

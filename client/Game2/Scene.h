@@ -348,6 +348,20 @@ public:
 
 protected:
 	virtual void Advance(Util::OS::timestamp_t tick);
+
+public:
+	/**
+	 * Handle a number key pressed while this scene has input focus.
+	 *
+	 * Dispatched from the main event loop before the normal control mapping,
+	 * so a scene can claim the digits without them also steering the craft.
+	 *
+	 * @param digit The digit, 0-9.
+	 * @return @c true if the scene consumed the key.
+	 */
+	virtual bool OnDigitKey(int digit) { HR_UNUSED(digit); return false; }
+
+protected:
 	virtual void PrepareRender() { }
 	virtual void Render() = 0;
 

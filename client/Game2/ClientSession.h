@@ -106,6 +106,13 @@ public:
 
 	size_t GetBotCount() const { return bots.size(); }
 
+	/**
+	 * Choose how many bots will race. Only meaningful before the race starts;
+	 * they are spawned on the transition into PLAYING.
+	 */
+	void SetPendingBots(int count);
+	int GetPendingBots() const { return pendingBots; }
+
 	virtual bool LoadNew(const char *pTitle, Script::Core &scripting,
 		std::shared_ptr<Model::Track> track,
 		VideoServices::VideoBuffer *pVideo);
@@ -158,6 +165,12 @@ private:
 
 	Model::GameSession mSession;
 	static const int MAX_PLAYERS = 4;
+
+public:
+	/// Upper bound on computer-controlled racers.
+	static const int MAX_BOTS = 8;
+
+private:
 	std::array<std::shared_ptr<Player::Player>, MAX_PLAYERS> players;
 
 	std::shared_ptr<HoverScript::MetaSession> meta;
@@ -175,10 +188,10 @@ private:
 	/// the level that something else is steering.
 	std::vector<std::unique_ptr<BotDriver>> bots;
 
-	/// Bots are spawned lazily on the first simulation step, since that is the
-	/// first point at which both the level and the rulebook are guaranteed to
-	/// be in place.
+	/// Bots are spawned on the transition into PLAYING, so the count can still
+	/// be changed from the starting grid during the countdown.
 	bool botsSpawned = false;
+	int pendingBots = -1;  ///< -1 until seeded from the rulebook.
 
 	void ReadLevelAttrib(Parcel::RecordFile *pFile,
 		VideoServices::VideoBuffer *pVideo);
