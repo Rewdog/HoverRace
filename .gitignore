@@ -17,6 +17,7 @@ desktop.ini
 # /
 /*.log
 /*.old
+/.deps
 /build
 /build-*
 /cppcheck_report.txt

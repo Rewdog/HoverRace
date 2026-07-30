@@ -157,6 +157,7 @@ private:
 	static MR_Int64 RSize(SDL_RWops *ctx)
 	{
 		auto is = Stream(ctx);
+		is->clear();
 		auto pos = is->tellg();
 
 		is->seekg(0, std::ios::end);
@@ -170,6 +171,12 @@ private:
 	static MR_Int64 RSeek(SDL_RWops *ctx, MR_Int64 offset, int whence)
 	{
 		auto is = Stream(ctx);
+
+		// Clear any eofbit/failbit left over from a previous short read,
+		// otherwise seeking on the stream is a no-op and SDL_image ends up
+		// reading from the wrong offset.
+		is->clear();
+
 		switch (whence) {
 			case RW_SEEK_SET:
 				is->seekg(offset, std::ios::beg);
@@ -192,20 +199,25 @@ private:
 	static size_t RRead(SDL_RWops *ctx, void *ptr,
 		size_t size, size_t maxnum)
 	{
+		if (size == 0 || maxnum == 0) return 0;
+
 		auto is = Stream(ctx);
-		auto buf = static_cast<char*>(ptr);
-		size_t num = 0;
-		for (size_t i = 0; i < maxnum; i++) {
-			is->read(buf, static_cast<std::streamsize>(size));
-			if (is) {
-				buf += size;
-				num++;
-			}
-			else {
-				break;
-			}
-		}
-		return num;
+
+		// Read the whole request in one call.
+		// Reading a single object at a time here is pathologically slow:
+		// SDL_image's ImageIO backend (used on macOS) pulls the entire file
+		// through this callback in small pieces, and every istream::read()
+		// pays for sentry construction and stream state bookkeeping.
+		is->read(static_cast<char*>(ptr),
+			static_cast<std::streamsize>(size * maxnum));
+
+		// A short read sets failbit/eofbit.  Clear it, otherwise every
+		// subsequent read and seek on this stream fails -- SDL_image seeks
+		// back to the start after probing the file format.
+		const auto bytesRead = static_cast<size_t>(is->gcount());
+		if (!is->good()) is->clear();
+
+		return bytesRead / size;
 	}
 
 	static size_t RWrite(SDL_RWops*, const void*, size_t, size_t)
@@ -231,10 +243,20 @@ struct RendererInfo {
 	{
 		SDL_GetRenderDriverInfo(idx, &info);
 
-		// Blacklisting the Direct3D driver since we prefer an OpenGL one.
-		// This also fixes issue #201 where SDL_SetTextureAlphaMod seems to stop
-		// working after a screen resize.
-		blacklisted = (strncmp(info.name, "direct3d", 8) == 0);
+		// Honor the standard SDL render driver hint (the SDL_RENDER_DRIVER
+		// environment variable).  SDL only applies it itself when the renderer
+		// index is -1; since we pick the index ourselves, we apply it here.
+		// This makes it possible to A/B a specific backend without rebuilding.
+		const char *forcedDriver = SDL_GetHint(SDL_HINT_RENDER_DRIVER);
+		if (forcedDriver && *forcedDriver) {
+			blacklisted = (strcmp(info.name, forcedDriver) != 0);
+		}
+		else {
+			// Blacklisting the Direct3D driver since we prefer an OpenGL one.
+			// This also fixes issue #201 where SDL_SetTextureAlphaMod seems to
+			// stop working after a screen resize.
+			blacklisted = (strncmp(info.name, "direct3d", 8) == 0);
+		}
 
 		bool noAccel = Config::GetInstance()->runtime.noAccel;
 		if (noAccel && (info.flags & SDL_RENDERER_ACCELERATED)) blacklisted = true;
@@ -614,8 +636,15 @@ void SdlDisplay::Screenshot()
 
 	OS::path_t path = cfg->GenerateScreenshotPath(".bmp");
 
-	SDL_Surface *surface =
-		SDL_CreateRGBSurface(0, width, height, 32, 0, 0, 0, 0);
+	// The surface format must match the format we ask SDL_RenderReadPixels for,
+	// otherwise the saved image has its channels swapped.
+	// Read the actual output size too; it differs from the logical window size
+	// on displays with a scale factor.
+	int outputWidth = width, outputHeight = height;
+	SDL_GetRendererOutputSize(renderer, &outputWidth, &outputHeight);
+
+	SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0,
+		outputWidth, outputHeight, 32, SDL_PIXELFORMAT_ARGB8888);
 	if (!surface) {
 		throw Exception(std::string("Unable to create screenshot surface: ") +
 			SDL_GetError());
@@ -651,7 +680,11 @@ void SdlDisplay::ApplyVideoMode()
 
 	SDL_Rect winRect = { vidCfg.xPos, vidCfg.yPos, vidCfg.xRes, vidCfg.yRes };
 
-	MR_UInt32 flags = SDL_WINDOW_RESIZABLE;
+	// ALLOW_HIGHDPI makes the drawable match the display's real pixel count on
+	// Retina-class screens. Without it the window is backed at the logical
+	// size and macOS upscales the result, which is what makes the software
+	// renderer's output look soft.
+	MR_UInt32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
 	boost::optional<SDL_DisplayMode> fullscreenMode;
 	if (vidCfg.fullscreen) {
 		// We don't set SDL_WINDOW_FULLSCREEN since we want to specify the
@@ -723,7 +756,13 @@ void SdlDisplay::ApplyVideoMode()
 
 	// Find a working renderer.
 	for (auto iter = renderers.begin(); iter != renderers.end(); ++iter) {
-		if ((renderer = SDL_CreateRenderer(window, iter->idx, 0)) != nullptr) {
+		// Present on the display's refresh. Running uncapped meant the camera
+		// smoothing filter (a fixed per-frame blend) ran far more often than
+		// the simulation stepped, which exaggerated craft jitter -- and it
+		// burned power for frames nobody sees.
+		if ((renderer = SDL_CreateRenderer(window, iter->idx,
+			SDL_RENDERER_PRESENTVSYNC)) != nullptr)
+		{
 			SDL_RendererInfo info;
 			SDL_GetRendererInfo(renderer, &info);
 			HR_LOG(info) << "Selected renderer: " << info;
@@ -749,11 +788,32 @@ void SdlDisplay::ApplyVideoMode()
 		HR_LOG(info) << "Failed to set \"linear\" render scale quality.";
 	}
 
+	// Work out how many physical pixels we actually got per logical point.
+	// Everything downstream (the UI scale, the legacy 3D framebuffer, font
+	// sizes) is derived from this, so setting it here is enough to render the
+	// whole game at native resolution.
+	{
+		int outputW = 0, outputH = 0;
+		int windowW = 0, windowH = 0;
+		SDL_GetRendererOutputSize(renderer, &outputW, &outputH);
+		SDL_GetWindowSize(window, &windowW, &windowH);
+
+		double scale = 1.0;
+		if (windowW > 0 && outputW > 0) {
+			scale = static_cast<double>(outputW) / static_cast<double>(windowW);
+		}
+		SetPixelScale(scale);
+
+		HR_LOG(info) << "Window " << windowW << "x" << windowH <<
+			", drawable " << outputW << "x" << outputH <<
+			" (pixel scale " << scale << ")";
+	}
+
 	// We keep track of the current state of the window so
 	// OnDisplayConfigChanged() can determine if anything special
 	// needs to be done.
-	width = vidCfg.xRes;
-	height = vidCfg.yRes;
+	width = static_cast<int>(vidCfg.xRes * GetPixelScale());
+	height = static_cast<int>(vidCfg.yRes * GetPixelScale());
 }
 
 /**

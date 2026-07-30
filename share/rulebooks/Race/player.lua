@@ -28,9 +28,18 @@ return Player {
 		-- We start with the default HUD for a race and add our lap counter.
 		local hud = self.player.hud
 		hud:use_race_default()
-		hud:add_chronometer(Hud.S, "Time", session.clock)
-		self.lap_counter = hud:add_counter(Hud.S, "Lap", 1,
+		-- Timing sits in the bottom-left corner. Hud.S is centred, which puts
+		-- it directly over the craft -- exactly where you are looking while
+		-- driving.
+		-- Only one element can sit on the corner itself; the rest stack up the
+		-- left edge on WSW.
+		self.lap_counter = hud:add_counter(Hud.SW, "Lap", 1,
 			session.rules.laps)
+		-- Same clock as the race timer, but reset on each finish line, so it
+		-- reads as the current lap without needing a second clock (nothing
+		-- would advance one created here).
+		self.lap_timer = hud:add_chronometer(Hud.WSW, "Lap time", session.clock)
+		hud:add_chronometer(Hud.WSW, "Race", session.clock)
 		print(player_name .. " started at " .. tostring(session.clock))
 	end,
 
@@ -62,6 +71,9 @@ return Player {
 			" (" .. (session.time / 1000) .. ")")
 
 		self.lap_counter.value = lap
+		if self.lap_timer then
+			self.lap_timer:reset()
+		end
 		if lap > session.rules.laps then
 			print(player_name .. " finished race!")
 			self.player:finish()

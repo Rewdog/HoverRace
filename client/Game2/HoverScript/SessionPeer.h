@@ -100,6 +100,8 @@ protected:
 
 public:
 	int LGetNumPlayers() const;
+	void LAddBots(int count);
+	void LAddBots_S(int count, double skill);
 	MR_SimulationTime LGetTime() const;
 	std::shared_ptr<Util::Clock> LGetClock() const;
 	std::shared_ptr<Util::Clock> LGetCountdown() const;

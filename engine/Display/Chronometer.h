@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include "../Util/Duration.h"
+
 #include "HudDecor.h"
 
 #if defined(_WIN32) && defined(HR_ENGINE_SHARED)
@@ -67,8 +69,24 @@ protected:
 public:
 	void Advance(Util::OS::timestamp_t tick) override;
 
+	/**
+	 * Restart the displayed time from now.
+	 *
+	 * The clock itself is shared (usually the session clock, which something
+	 * else is responsible for advancing), so this records an origin and
+	 * displays the time elapsed since it rather than touching the clock.
+	 * That is what lets a lap timer and a total-race timer run off one clock.
+	 */
+	void Reset();
+
 private:
 	std::shared_ptr<Util::Clock> clock;
+
+	/// Displayed time is measured from here once hasOrigin is set. A flag is
+	/// used rather than testing origin against zero, since a lap can
+	/// legitimately begin at time zero.
+	Util::Duration origin;
+	bool hasOrigin = false;
 
 	Util::OS::timestamp_t lastTick;
 

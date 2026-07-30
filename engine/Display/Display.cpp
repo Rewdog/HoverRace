@@ -110,8 +110,12 @@ void Display::CleanTypeCaseCache()
 void Display::OnDisplayConfigChanged()
 {
 	const auto &vidCfg = Config::GetInstance()->video;
-	int w = vidCfg.xRes;
-	int h = vidCfg.yRes;
+
+	// Render at the display's real pixel count, not the configured window
+	// size. On a high-DPI screen these differ by the pixel scale, and drawing
+	// at the smaller size means the OS upscales every frame.
+	int w = static_cast<int>(vidCfg.xRes * pixelScale);
+	int h = static_cast<int>(vidCfg.yRes * pixelScale);
 	double wd = static_cast<double>(w);
 	double hd = static_cast<double>(h);
 

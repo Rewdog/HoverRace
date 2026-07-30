@@ -377,6 +377,24 @@ void ClientApp::RenderFrame()
 		RenderScenes();
 	}
 
+	// Diagnostic aid for automated rendering checks:
+	// HR_AUTO_SCREENSHOT=<n> saves frame <n> and then quits.
+	// The capture has to happen before Flip(), since the contents of the back
+	// buffer are undefined once the frame has been presented.
+	static const long autoScreenshotFrame = []() -> long {
+		const char *env = SDL_getenv("HR_AUTO_SCREENSHOT");
+		return env ? strtol(env, nullptr, 10) : 0;
+	}();
+	if (autoScreenshotFrame > 0) {
+		static long autoFrameCount = 0;
+		if (++autoFrameCount == autoScreenshotFrame) {
+			display->Screenshot();
+			SDL_Event quitEvt;
+			quitEvt.type = SDL_QUIT;
+			SDL_PushEvent(&quitEvt);
+		}
+	}
+
 	display->Flip();
 }
 
@@ -405,6 +423,31 @@ ClientApp::ExitMode ClientApp::MainLoop()
 		OS::timestamp_t tick = OS::Time();
 
 		while (SDL_PollEvent(&evt) && !quit) {
+			// SDL reports mouse positions in logical window points, but on a
+			// high-DPI display the UI is laid out in drawable pixels, which are
+			// larger by the pixel scale. Convert here, at the single point
+			// where SDL coordinates enter the game, so hit-testing lines up
+			// with what's actually drawn.
+			//
+			// Relative motion is deliberately left alone: it drives the
+			// mouse-look axes rather than hit-testing, and scaling it would
+			// silently double the mouse sensitivity.
+			const double pixelScale = display->GetPixelScale();
+			if (pixelScale != 1.0) {
+				switch (evt.type) {
+					case SDL_MOUSEMOTION:
+						evt.motion.x = static_cast<Sint32>(evt.motion.x * pixelScale);
+						evt.motion.y = static_cast<Sint32>(evt.motion.y * pixelScale);
+						break;
+
+					case SDL_MOUSEBUTTONDOWN:
+					case SDL_MOUSEBUTTONUP:
+						evt.button.x = static_cast<Sint32>(evt.button.x * pixelScale);
+						evt.button.y = static_cast<Sint32>(evt.button.y * pixelScale);
+						break;
+				}
+			}
+
 			if (evt.type >= SDL_KEYDOWN && evt.type <= SDL_MULTIGESTURE) {
 				// Input events are routed to the InputEventController.
 				controller->ProcessInputEvent(evt);

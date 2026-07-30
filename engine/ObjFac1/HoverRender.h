@@ -46,6 +46,7 @@ protected:
 	const ObjFacTools::ResActor *mActor1;
 	const ObjFacTools::ResActor *mActor2;
 	const ObjFacTools::ResActor *mActor3;
+	const ObjFacTools::ResActor *mActor4;
 
 	int mFrame;
 

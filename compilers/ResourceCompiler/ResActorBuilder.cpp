@@ -34,19 +34,16 @@ namespace ResourceCompiler {
 
 namespace {
 	// Temporary until this is rewritten.
+	//
+	// Reaching the end of the mesh file is the normal way out: every parse
+	// loop below is written to stop when this returns nullptr. Throwing on
+	// feof() instead made the compiler fail on *every* actor, including the
+	// game's own meshes, so only a genuine read error is an error here.
 	char *sfgets(char *s, int sz, FILE *file)
 	{
 		char *retv = fgets(s, sz, file);
-		if (!retv) {
-			if (feof(file)) {
-				throw Exception("Unexpected end of file");
-			}
-			else if (ferror(file)) {
-				throw Exception("Read error");
-			}
-			else {
-				throw Exception("Unknown read error");
-			}
+		if (!retv && ferror(file)) {
+			throw Exception("Read error");
 		}
 		return retv;
 	}

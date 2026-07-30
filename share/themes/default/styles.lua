@@ -28,11 +28,11 @@ styles.announcement_symbol_fg = 0xbfffffff
 styles.announcement_bg = 0xbf000000
 
 -- 100% HUD scale.
-styles.hud_normal_font:set { size = 30, style = Font.BOLD }
-styles.hud_normal_head_font:set { size = 20, style = Font.PLAIN }
+styles.hud_normal_font:set { size = 38, style = Font.BOLD }
+styles.hud_normal_head_font:set { size = 22, style = Font.PLAIN }
 -- 50% HUD scale.
-styles.hud_small_font:set { size = 20, style = Font.BOLD }
-styles.hud_small_head_font:set { size = 15, style = Font.PLAIN }
+styles.hud_small_font:set { size = 26, style = Font.BOLD }
+styles.hud_small_head_font:set { size = 17, style = Font.PLAIN }
 
 styles.console_font:set { name = "monospace", size = 30, style = Font.PLAIN }
 styles.console_fg = WHITE

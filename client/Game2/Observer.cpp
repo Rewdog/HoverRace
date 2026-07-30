@@ -146,14 +146,16 @@ void Observer::SetCockpitView(BOOL pOn)
 
 const std::string &Observer::GetCraftName(int id)
 {
-	static const std::string names[4] = {
+	static const std::string names[5] = {
 		std::string(_("Basic craft")),
 		std::string(_("CX craft")),
 		std::string(_("Bi-Turbo craft")),
 		std::string(_("Eon craft")),
+		std::string(_("Nova craft")),
 		};
 	static const std::string unknown = std::string(_("Unknown craft"));
-	return (id >= 0 && id < 4) ? names[id] : unknown;
+	const int count = static_cast<int>(sizeof(names) / sizeof(names[0]));
+	return (id >= 0 && id < count) ? names[id] : unknown;
 }
 
 void Observer::Scroll(int pOffset)

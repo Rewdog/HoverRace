@@ -63,25 +63,35 @@ static_assert(std::is_pod<MainCharacterState>::value,
 	"MainCharacterState must be a POD type");
 
 // Local constants
+//
+// MINIMUM_SPLITTABLE_TIME_SLICE must stay BELOW TIME_SLICE.
+//
+// Simulate() only ever hands InternalSimulate() slices of at most TIME_SLICE,
+// so a minimum of 6 made the "halve the step and retry" loop in
+// InternalSimulate() unreachable -- lDuration started at 5 and the loop broke
+// on its first pass, every time. A blocked move then produced no movement at
+// all instead of the largest movement that fits, which is what makes the craft
+// stick to walls rather than creep up to them.
 #define TIME_SLICE                     5
-#define MINIMUM_SPLITTABLE_TIME_SLICE  6
+#define MINIMUM_SPLITTABLE_TIME_SLICE  2
 
 const int eCharacterMovementRay = 1100;
 const int eCharacterRay = 1300;
 const int eCharacterHeight = 1500;
 const int eCharacterContactRay = 1450;
+//                             Basic  CX  BiTurbo  Eon  Nova
 const int eCharacterWeight[MR_NB_HOVER_MODEL] =
-	{ 300, 250, 450, 300, 300, 300, 300, 300 };
+	{ 300, 250, 450, 300, 200, 300, 300, 300 };
 const int eMissileRefillTime = 10000;
 const int ePwrUpDuration = 5000;
 
 const double eSteadySpeed[MR_NB_HOVER_MODEL] =
 {
-	8.7 * 2222.0 / 1000.0,
-	11.5 * 2222.0 / 1000.0,
-	10.5 * 2222.0 / 1000.0,
-	8.7 * 2222.0 / 1000.0,
-	8.7 * 2222.0 / 1000.0,
+	8.7 * 2222.0 / 1000.0,						  // 0: Basic
+	11.5 * 2222.0 / 1000.0,						  // 1: CX
+	10.5 * 2222.0 / 1000.0,						  // 2: Bi-Turbo
+	8.7 * 2222.0 / 1000.0,						  // 3: Eon
+	12.6 * 2222.0 / 1000.0,						  // 4: Nova - fastest flat out
 	8.7 * 2222.0 / 1000.0,
 	8.7 * 2222.0 / 1000.0,
 	8.1 * 2222.0 / 1000.0
@@ -102,11 +112,11 @@ const double eRotationSpeed = (MR_PI / 1.4) / 1000.0;
 
 const double eFrictionAccell[MR_NB_HOVER_MODEL] =
 {
-	-eSteadySpeed[0] / 4.0 / 1000.0,
-	-eSteadySpeed[0] / 4.0 / 1200.0,
-	-eSteadySpeed[0] / 4.0 / 900.0,
-	-eSteadySpeed[0] / 4.0 / 1000.0,
-	-eSteadySpeed[0] / 4.0 / 1000.0,
+	-eSteadySpeed[0] / 4.0 / 1000.0,			  // 0: Basic
+	-eSteadySpeed[0] / 4.0 / 1200.0,			  // 1: CX
+	-eSteadySpeed[0] / 4.0 / 900.0,				  // 2: Bi-Turbo
+	-eSteadySpeed[0] / 4.0 / 1000.0,			  // 3: Eon
+	-eSteadySpeed[0] / 4.0 / 1600.0,			  // 4: Nova - glides, bleeds speed slowly
 	-eSteadySpeed[0] / 4.0 / 1000.0,
 	-eSteadySpeed[0] / 4.0 / 1000.0,
 	-eSteadySpeed[0] / 4.0 / 700.0
@@ -114,11 +124,11 @@ const double eFrictionAccell[MR_NB_HOVER_MODEL] =
 
 const double eMotorAccell[MR_NB_HOVER_MODEL] =
 {
-	eSteadySpeed[0] / 1000.0,
-	eSteadySpeed[0] / 1400.0,
-	eSteadySpeed[2] / 1050.0,
-	eSteadySpeed[0] / 1000.0,
-	eSteadySpeed[0] / 1000.0,
+	eSteadySpeed[0] / 1000.0,					  // 0: Basic
+	eSteadySpeed[0] / 1400.0,					  // 1: CX
+	eSteadySpeed[2] / 1050.0,					  // 2: Bi-Turbo
+	eSteadySpeed[0] / 1000.0,					  // 3: Eon
+	eSteadySpeed[0] / 1700.0,					  // 4: Nova - slow to wind up
 	eSteadySpeed[0] / 1000.0,
 	eSteadySpeed[0] / 1000.0,
 	eSteadySpeed[7] / 750.0
@@ -144,11 +154,11 @@ const double eZAccell[MR_NB_HOVER_MODEL] =
 const double eFuelCapacity = 3 * 60 * 1000;		  // 3 minutes of fuel
 const double eFuelConsuming[MR_NB_HOVER_MODEL] =
 {
-	1.0,
-	0.70,
-	2.0,
-	1.0,
-	1.0,
+	1.0,										  // 0: Basic
+	0.70,										  // 1: CX
+	2.0,										  // 2: Bi-Turbo
+	1.0,										  // 3: Eon
+	1.55,										  // 4: Nova - thirsty
 	1.0,
 	1.0,
 	1.1,
@@ -170,6 +180,30 @@ public:
 	virtual ~TrackConfigExn() throw() { }
 };
 
+/// Number of selectable craft, including those with no legacy flag bit.
+const unsigned int eCraftCount = 5;
+
+/// Craft that predate the legacy "gameOpts" flags and so are always available.
+const unsigned int eFirstUnflaggedCraft = 4;
+
+/**
+ * Check whether a craft may be selected.
+ *
+ * The legacy gameOpts byte only has four craft bits (0x01 - 0x08); 0x10 is
+ * already OPT_ALLOW_CANS. Craft added beyond those four therefore have no bit
+ * to test and are always selectable, rather than silently colliding with an
+ * unrelated flag.
+ *
+ * @param gameOpts The current game options.
+ * @param craft The craft ID.
+ * @return Whether the craft can be chosen.
+ */
+bool IsCraftSelectable(char gameOpts, unsigned int craft)
+{
+	if (craft >= eFirstUnflaggedCraft) return true;
+	return (gameOpts & (1 << craft)) != 0;
+}
+
 /**
  * Find the next craft that's allowed by the config.
  * @param gameOpts The current game options.
@@ -186,8 +220,8 @@ unsigned int NextAllowedCraft(char gameOpts, unsigned int curCraft,
 
 	do {
 		curCraft = static_cast<unsigned int>(
-			(static_cast<int>(curCraft) + step + 4) % 4);
-	} while (!(gameOpts & (1 << curCraft)));
+			(static_cast<int>(curCraft) + step + eCraftCount) % eCraftCount);
+	} while (!IsCraftSelectable(gameOpts, curCraft));
 
 	return curCraft;
 }
@@ -730,6 +764,11 @@ int MainCharacter::InternalSimulate(MR_SimulationTime pDuration,
 	lShape.mPosition.mY = mPosition.mY + lTranslation.mY;
 	lShape.mPosition.mZ = mPosition.mZ + lTranslation.mZ;
 
+	// Whether any attempt in the loop below actually moved the craft.
+	// lSuccessfullTry only reflects the *last* attempt, which can fail after an
+	// earlier one already succeeded.
+	BOOL lMovedAtAll = FALSE;
+
 	for (;;) {
 		lSuccessfullTry = FALSE;
 
@@ -781,6 +820,8 @@ int MainCharacter::InternalSimulate(MR_SimulationTime pDuration,
 			}
 		}
 
+		if (lSuccessfullTry) lMovedAtAll = TRUE;
+
 		if(lDuration < MINIMUM_SPLITTABLE_TIME_SLICE)
 			break;
 		else {
@@ -799,6 +840,103 @@ int MainCharacter::InternalSimulate(MR_SimulationTime pDuration,
 				lShape.mPosition.mX -= lDuration * lTranslation.mX / pDuration;
 				lShape.mPosition.mY -= lDuration * lTranslation.mY / pDuration;
 				lShape.mPosition.mZ -= lDuration * lTranslation.mZ / pDuration;
+			}
+		}
+	}
+
+	// Wall sliding.
+	//
+	// The loop above only ever scales the *combined* translation vector down,
+	// so if every scale of that one direction is blocked the craft stops dead
+	// and stays pinned -- at full speed, with the motor still pushing it into
+	// the wall. That is the "hit it at the right angle and stick" case.
+	//
+	// Track walls are arbitrary polygon edges, not axis-aligned, and the
+	// collision report does not expose a surface normal, so instead of
+	// decomposing onto X/Y we fan the translation out to either side and take
+	// the first direction that is actually free. The smallest deviation wins,
+	// which is what reads as sliding along the wall.
+	if(!lMovedAtAll && (lTranslation.mX != 0 || lTranslation.mY != 0)) {
+		// The fan has to reach past 90 degrees. Any rotation short of that
+		// still leaves a component pointing into the wall, so for a near
+		// head-on hit every direction under 90 degrees is blocked too --
+		// which is exactly the case that pins the craft. The last few angles
+		// steer slightly away from the surface and free it.
+		static const double lSlideAngles[] = {
+			0.35, -0.35, 0.70, -0.70, 1.05, -1.05, 1.40, -1.40,
+			1.5708, -1.5708, 1.75, -1.75, 1.92, -1.92
+		};
+
+		for(double lAngle : lSlideAngles) {
+			const double lCos = cos(lAngle);
+			const double lSin = sin(lAngle);
+
+			MR_Int32 lSlideX = (MR_Int32)
+				(lTranslation.mX * lCos - lTranslation.mY * lSin);
+			MR_Int32 lSlideY = (MR_Int32)
+				(lTranslation.mX * lSin + lTranslation.mY * lCos);
+
+			// A zero-length candidate would "succeed" without moving the craft
+			// anywhere, which would report the stuck state as resolved.
+			if(lSlideX == 0 && lSlideY == 0)
+				continue;
+
+			lShape.mPosition.mX = mPosition.mX + lSlideX;
+			lShape.mPosition.mY = mPosition.mY + lSlideY;
+			lShape.mPosition.mZ = mPosition.mZ;
+
+			lReport.GetContactWithObstacles(level, &lShape, pRoom, this);
+			if(lReport.IsInMaze() && !lReport.HaveContact()) {
+				mPosition = lShape.mPosition;
+				pRoom = lReport.Room();
+				lMovedAtAll = TRUE;
+				break;
+			}
+		}
+	}
+
+	// Last resort: the craft has ended up *inside* the geometry, so its current
+	// position reports contact and therefore every candidate move does too --
+	// no scaling and no slide direction can ever succeed, and it stays wedged
+	// in the wall permanently.
+	//
+	// Note this cannot be solved by damping the speed: the translation is
+	// computed as (int)(speed * duration), so bleeding speed off just makes it
+	// truncate to zero, which wedges the craft even harder.
+	//
+	// Search outward in rings for the nearest free spot and put the craft
+	// there, killing the horizontal speed so it settles instead of immediately
+	// driving back in.
+	if(!lMovedAtAll) {
+		lShape.mPosition = mPosition;
+		lReport.GetContactWithObstacles(level, &lShape, pRoom, this);
+
+		if(!lReport.IsInMaze() || lReport.HaveContact()) {
+			const int lDirections = 16;
+			BOOL lFreed = FALSE;
+
+			for(int lRing = 1; (lRing <= 6) && !lFreed; lRing++) {
+				const MR_Int32 lDist = (eCharacterRay / 3) * lRing;
+
+				for(int lStep = 0; (lStep < lDirections) && !lFreed; lStep++) {
+					const double lDir =
+						(2.0 * M_PI * lStep) / (double) lDirections;
+
+					lShape.mPosition.mX =
+						mPosition.mX + (MR_Int32)(cos(lDir) * lDist);
+					lShape.mPosition.mY =
+						mPosition.mY + (MR_Int32)(sin(lDir) * lDist);
+					lShape.mPosition.mZ = mPosition.mZ;
+
+					lReport.GetContactWithObstacles(level, &lShape, pRoom, this);
+					if(lReport.IsInMaze() && !lReport.HaveContact()) {
+						mPosition = lShape.mPosition;
+						pRoom = lReport.Room();
+						mXSpeed = 0;
+						mYSpeed = 0;
+						lFreed = TRUE;
+					}
+				}
 			}
 		}
 	}

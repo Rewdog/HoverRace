@@ -32,11 +32,16 @@ namespace HoverRace {
 namespace Display {
 
 namespace {
-	const Color BG_COLOR = 0x3f000000;
-	const Color TITLE_COLOR = 0xffe3063e;
-	const Color VALUE_COLOR = TITLE_COLOR;
-	const double MARGIN_WIDTH = 15;
-	const double MARGIN_HEIGHT = 10;
+	// The HUD sits over a mostly white track, so the panel needs real opacity
+	// to read at all -- the original 0x3f alpha was 25% and effectively
+	// vanished. Title and value also shared one colour, leaving no hierarchy;
+	// the value is now near-white and the label a muted blue-grey, so the
+	// number is what the eye lands on.
+	const Color BG_COLOR = 0xcc0a0e16;
+	const Color TITLE_COLOR = 0xffa8bcd8;
+	const Color VALUE_COLOR = 0xfff2f6ff;
+	const double MARGIN_WIDTH = 18;
+	const double MARGIN_HEIGHT = 12;
 }
 
 /**
@@ -98,6 +103,12 @@ void Chronometer::Layout()
 	SetSize(sz);
 }
 
+void Chronometer::Reset()
+{
+	origin = clock->GetTime();
+	hasOrigin = true;
+}
+
 void Chronometer::Advance(Util::OS::timestamp_t tick)
 {
 	if (lastTick != tick) {
@@ -105,7 +116,9 @@ void Chronometer::Advance(Util::OS::timestamp_t tick)
 		size_t oldLen = valueLbl->GetText().length();
 
 		// Negative times are countdowns, so leave off the negative sign.
-		std::string text = clock->FmtLong();
+		std::string text = hasOrigin ?
+			Util::Duration(clock->GetTime(), origin).FmtLong() :
+			clock->FmtLong();
 		if (!text.empty() && text[0] == '-') {
 			text.erase(0, 1);
 		}

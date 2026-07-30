@@ -88,6 +88,7 @@ ACTOR meshes/basic_craft.msh 10
 ACTOR meshes/cx_craft.msh 11
 ACTOR meshes/bi_craft.msh 12
 ACTOR meshes/eon_craft.msh 19
+ACTOR meshes/nova_craft.msh 13
 ACTOR meshes/missile.msh 20
 ACTOR meshes/mine.msh 21
 ACTOR meshes/can.msh 22

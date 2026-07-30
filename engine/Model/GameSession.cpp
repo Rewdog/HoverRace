@@ -26,8 +26,16 @@
 #include "../Model/Track.h"
 #include "../Util/FastArray.h"
 
+/// Largest single simulation step, to survive a stall without tunnelling.
+#define MR_MAX_SIMULATION_STEP          100
+
 #define MR_SIMULATION_SLICE             15
-#define MR_MINIMUM_SIMULATION_SLICE     10
+// Keep this well below a frame time. At 10 ms the simulation only advanced
+// once several frames had piled up, so the craft sat still for most rendered
+// frames and then jumped -- while the camera, which is smoothed every frame,
+// kept moving. That relative motion is what reads as the craft jittering
+// while the walls and floor look fine.
+#define MR_MINIMUM_SIMULATION_SLICE     2
 
 using namespace HoverRace::Parcel;
 
@@ -111,13 +119,26 @@ void GameSession::Simulate()
 	   }
 	 */
 
-	while(lTimeToSimulate >= MR_SIMULATION_SLICE) {
-		SimulateFreeElems(mSimulationTime < 0 ? 0 : MR_SIMULATION_SLICE);
-		lTimeToSimulate -= MR_SIMULATION_SLICE;
-		mSimulationTime += MR_SIMULATION_SLICE;
+	// Advance by exactly the time that elapsed, once per call.
+	//
+	// This used to run in fixed 15 ms chunks and hold back any remainder under
+	// 10 ms. The simulation therefore advanced by a different amount than the
+	// frame actually covered: positions drifted behind real time and then
+	// caught up in a lump. Whatever the camera was locked to looked smooth and
+	// everything else visibly stuttered -- which is why the craft and the walls
+	// traded jitter depending on how the camera was following.
+	//
+	// Chunking here is not what keeps the physics stable: MainCharacter and
+	// Missile sub-divide internally (see TIME_SLICE), so the integration step
+	// stays small regardless of how much time is handed in.
+	if(lTimeToSimulate > MR_MAX_SIMULATION_STEP) {
+		// A long stall -- loading, or the window being dragged -- must not turn
+		// into one enormous step that tunnels through the level. Drop the
+		// excess rather than trying to catch up.
+		lTimeToSimulate = MR_MAX_SIMULATION_STEP;
 	}
 
-	if(lTimeToSimulate >= MR_MINIMUM_SIMULATION_SLICE) {
+	if(lTimeToSimulate > 0) {
 		SimulateFreeElems(mSimulationTime < 0 ? 0 : lTimeToSimulate);
 		mSimulationTime += lTimeToSimulate;
 		lTimeToSimulate = 0;

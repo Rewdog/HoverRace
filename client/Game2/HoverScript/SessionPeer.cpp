@@ -89,6 +89,8 @@ void SessionPeer::Register(Script::Core &scripting)
 			.def(tostring(self))
 			.def("countdown_to_next_phase", &SessionPeer::LCountdownToNextPhase)
 			.def("get_num_players", &SessionPeer::LGetNumPlayers)
+			.def("add_bots", &SessionPeer::LAddBots)
+			.def("add_bots", &SessionPeer::LAddBots_S)
 			.def_readonly("players", &SessionPeer::players)
 			.def_readonly("rules", &SessionPeer::rules)
 			.property("clock", &SessionPeer::LGetClock)
@@ -154,6 +156,18 @@ int SessionPeer::LGetNumPlayers() const
 {
 	VerifySession();
 	return session->GetNbPlayers();
+}
+
+void SessionPeer::LAddBots(int count)
+{
+	LAddBots_S(count, 1.0);
+}
+
+void SessionPeer::LAddBots_S(int count, double skill)
+{
+	VerifySession();
+	if (count <= 0) return;
+	session->AddBots(count, skill);
 }
 
 MR_SimulationTime SessionPeer::LGetTime() const

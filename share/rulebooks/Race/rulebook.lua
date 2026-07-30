@@ -5,6 +5,7 @@ Rulebook "Race" {
 
 	rules = {
 		laps = 5,
+		bots = 3,
 	},
 
 	on_load = function()

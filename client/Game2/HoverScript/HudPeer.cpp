@@ -92,7 +92,8 @@ void HudPeer::Register(Script::Core &scripting)
 
 	// Register HUD elements.
 	module(L, "hud") [
-		class_<Display::Chronometer, Display::HudDecor, std::shared_ptr<Display::HudDecor>>("Chronometer"),
+		class_<Display::Chronometer, Display::HudDecor, std::shared_ptr<Display::HudDecor>>("Chronometer")
+			.def("reset", &Display::Chronometer::Reset),
 		class_<Display::Counter, Display::HudDecor, std::shared_ptr<Display::HudDecor>>("Counter")
 			.property("value", &Display::Counter::GetValue, &Display::Counter::SetValue)
 			.property("total", &Display::Counter::GetTotal, &Display::Counter::SetTotal),

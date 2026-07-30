@@ -100,7 +100,20 @@ using MR_Angle = MR_Int16;
 
 #define MR_NORMALIZE_ANGLE( pAngle ) ( (MR_Angle) (( 2*MR_2PI+(pAngle) )%MR_2PI) )
 
-#define RAD_2_MR_ANGLE( pAngle ) ((MR_Angle)( (static_cast<unsigned int>(pAngle*static_cast<double>(MR_2PI)*0.5/3.1415926536)+MR_2PI)%static_cast<unsigned int>(MR_2PI) ))
+// Convert radians to the engine's fixed-point angle.
+//
+// This is nearly always fed atan2(), which returns -pi..pi. The original
+// converted through `unsigned int`, and casting a negative double to an
+// unsigned integer type is undefined behaviour: on x86 it happened to wrap
+// modularly and give the right answer, but on ARM64 `fcvtzu` *saturates to
+// zero*, so every negative angle -- the entire lower half of the circle --
+// collapsed to 0.
+//
+// That silently corrupted collision bounce directions (ShapeCollisions.cpp
+// passes atan2 results straight into this) as well as the look-back cabin
+// angle. Going through a signed int keeps the conversion well defined; the
+// extra MR_2PI makes the modulus positive for negative inputs.
+#define RAD_2_MR_ANGLE( pAngle ) ((MR_Angle)( (static_cast<int>((pAngle)*static_cast<double>(MR_2PI)*0.5/3.1415926536) + 2*MR_2PI) % MR_2PI ))
 
 // Temporal units
 using MR_SimulationTime = MR_Int32;  // In 1/1000th of seconds

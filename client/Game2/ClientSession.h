@@ -24,7 +24,11 @@
 
 #include "../../engine/Model/GameSession.h"
 #include "../../engine/VideoServices/Sprite.h"
+#include <vector>
+
 #include "../../engine/Util/OS.h"
+
+#include "BotDriver.h"
 
 namespace HoverRace {
 	namespace Client {
@@ -93,6 +97,15 @@ public:
 	// Simulation control
 	virtual void Process();
 
+	/**
+	 * Add computer-controlled racers to the current level.
+	 * @param count How many to add.
+	 * @param skill 0..1; higher corners more tidily and lifts off later.
+	 */
+	void AddBots(int count, double skill = 1.0);
+
+	size_t GetBotCount() const { return bots.size(); }
+
 	virtual bool LoadNew(const char *pTitle, Script::Core &scripting,
 		std::shared_ptr<Model::Track> track,
 		VideoServices::VideoBuffer *pVideo);
@@ -156,6 +169,16 @@ private:
 	std::shared_ptr<Util::Clock> countdown;
 	boost::signals2::scoped_connection countdownConn;
 	std::shared_ptr<Rules> rules;
+
+	/// Computer-controlled racers. Not Players: they hold no profile, take no
+	/// viewport and never appear in the HUD -- they are simply extra craft in
+	/// the level that something else is steering.
+	std::vector<std::unique_ptr<BotDriver>> bots;
+
+	/// Bots are spawned lazily on the first simulation step, since that is the
+	/// first point at which both the level and the rulebook are guaranteed to
+	/// be in place.
+	bool botsSpawned = false;
 
 	void ReadLevelAttrib(Parcel::RecordFile *pFile,
 		VideoServices::VideoBuffer *pVideo);

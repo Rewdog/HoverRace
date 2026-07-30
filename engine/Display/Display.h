@@ -250,10 +250,24 @@ public:
 	 */
 	const Vec2 &GetUiScreenSize() const noexcept { return uiScreenSize; }
 
+	/**
+	 * The ratio of physical pixels to the configured window size.
+	 *
+	 * On a high-DPI display the drawable is larger than the window, so
+	 * everything is rendered at this multiple of the configured resolution and
+	 * the UI scale compensates -- same apparent size, more pixels.
+	 *
+	 * @return The scale (1.0 on a conventional display).
+	 */
+	double GetPixelScale() const noexcept { return pixelScale; }
+
+	void SetPixelScale(double scale) noexcept { pixelScale = scale; }
+
 private:
 	Vec2 uiOrigin;
 	uiLayoutFlags_t uiLayoutFlags;
 	double uiScale;
+	double pixelScale = 1.0;
 	Vec2 uiOffset;
 	Vec2 uiScreenSize;
 	std::unordered_map<UiFont, std::weak_ptr<TypeCase>> typeCases;

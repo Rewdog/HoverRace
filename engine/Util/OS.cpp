@@ -431,7 +431,7 @@ std::string OS::GetUsername()
 			retv = DEFAULT_NICKNAME;
 		}
 #	else
-		char buf[LOGIN_NAME_MAX];
+		char buf[256];
 		if (getlogin_r(buf, sizeof(buf)) == 0) {
 			retv = buf;
 		}

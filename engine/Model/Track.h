@@ -21,6 +21,9 @@
 
 #pragma once
 
+#include <list>
+#include <memory>
+
 #include "../Display/Res.h"
 #include "../Vec.h"
 

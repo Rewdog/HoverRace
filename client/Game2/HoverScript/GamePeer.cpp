@@ -321,6 +321,10 @@ void GamePeer::LStartPractice_RO(const std::string &track,
 	bool hasExtension = boost::ends_with(track, Config::TRACK_EXT);
 
 	int laps = 5;
+	// -1 means "not specified", so an absent option leaves the rulebook's own
+	// default alone. Defaulting to 0 here overwrote it, which made bots
+	// impossible to enable from anywhere except an --exec script.
+	int bots = -1;
 
 	int rulesParamType = type(opts);
 	if (rulesParamType != LUA_TNIL) {
@@ -329,6 +333,17 @@ void GamePeer::LStartPractice_RO(const std::string &track,
 				laps = boost::lexical_cast<int>(opts["laps"]);
 				if (laps < 1) laps = 1;
 				else if (laps > 99) laps = 99;
+			}
+			catch (boost::bad_lexical_cast&) { }
+
+			// Options are read out by name rather than copied wholesale, so a
+			// new rulebook option is invisible here until it is picked up
+			// explicitly -- which is why declaring 'bots' in the rulebook was
+			// not enough on its own.
+			try {
+				bots = boost::lexical_cast<int>(opts["bots"]);
+				if (bots < 0) bots = 0;
+				else if (bots > 8) bots = 8;
 			}
 			catch (boost::bad_lexical_cast&) { }
 		}
@@ -351,6 +366,7 @@ void GamePeer::LStartPractice_RO(const std::string &track,
 	rules->SetTrackEntry(Config::GetInstance()->GetTrackBundle().OpenTrackEntry(
 		hasExtension ? track : (track + Config::TRACK_EXT)));
 	rules->SetLaps(laps);
+	if (bots >= 0) rules->SetBots(bots);
 
 	director.RequestNewPracticeSession(rules);
 }

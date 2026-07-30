@@ -160,7 +160,26 @@ void ClientSession::Process()
 		clock->Advance();
 	}
 
+	if (!botsSpawned) {
+		botsSpawned = true;
+		const int wanted = rules ? rules->GetBots() : 0;
+		if (wanted > 0) {
+			AddBots(wanted);
+		}
+	}
+
 	UpdateCharacterSimulationTimes();
+
+	// Bots pick their inputs just before the world advances, so they steer on
+	// the same state the physics is about to integrate.
+	if (!bots.empty()) {
+		if (const Model::Level *level = mSession.GetCurrentLevel()) {
+			for (auto &bot : bots) {
+				bot->Update(*level);
+			}
+		}
+	}
+
 	mSession.Simulate();
 }
 
@@ -245,6 +264,53 @@ void ClientSession::AttachPlayer(int i, std::shared_ptr<Player::Player> player)
 	ch->SetHoverId(i);
 
 	curLevel->InsertElement(ch, startingRoom);
+}
+
+/**
+ * Add computer-controlled racers to the current level.
+ *
+ * A bot is an ordinary MainCharacter inserted into the level, so it is
+ * simulated, collides and renders exactly like a human racer -- the only
+ * difference is that BotDriver supplies its control inputs. They are
+ * deliberately not registered as Players, so they claim no viewport and do
+ * not disturb the HUD or the results table.
+ */
+void ClientSession::AddBots(int count, double skill)
+{
+	Model::Level *curLevel = mSession.GetCurrentLevel();
+	if (!curLevel) return;
+
+	const char gameOpts = rules ? rules->GetGameOpts().ToFlags() : 0x0f;
+	const int startSlots = curLevel->GetPlayerCount();
+
+	for (int i = 0; i < count; i++) {
+		// Offset past the human slots so bots don't spawn inside the player.
+		const int slot = (MAX_PLAYERS + i) %
+			(startSlots > 0 ? startSlots : 1);
+
+		auto ch = std::shared_ptr<MainCharacter::MainCharacter>(
+			MainCharacter::MainCharacter::New(MAX_PLAYERS + i, gameOpts));
+		if (!ch) continue;
+
+		const int startingRoom = curLevel->GetStartingRoom(slot);
+		ch->mRoom = startingRoom;
+		ch->mPosition = curLevel->GetStartingPos(slot);
+		ch->SetOrientation(curLevel->GetStartingOrientation(slot));
+
+		// Spread them across the grid so they don't all start on one point.
+		ch->mPosition.mX += ((i % 3) - 1) * 2600;
+		ch->mPosition.mY += ((i / 3) + 1) * 2600;
+
+		// Cycle the craft so a field of bots isn't visually uniform.
+		ch->SetHoverModel(static_cast<unsigned>(i % 5));
+		ch->SetHoverId(MAX_PLAYERS + i);
+
+		curLevel->InsertElement(ch, startingRoom);
+		bots.emplace_back(new BotDriver(ch, skill));
+	}
+
+	HR_LOG(info) << "Added " << count << " bot(s); " << bots.size() <<
+		" racing.";
 }
 
 /**

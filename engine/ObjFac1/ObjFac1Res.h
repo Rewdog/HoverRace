@@ -127,6 +127,7 @@
 #define MR_HITECH_CAR   11
 #define MR_BITURBO_CAR  12
 #define MR_EON_CRAFT	19
+#define MR_NOVA_CRAFT   13
 
 #define MR_MISSILE      20
 #define MR_MINE         21

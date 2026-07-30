@@ -47,8 +47,10 @@ const MR_Int32 cIgnitionTime = 175;  // 0.175 sec
 
 }  // namespace
 
+// See the note in MainCharacter.cpp: a minimum at or above TIME_SLICE makes
+// the collision retry loop in InternalSimulate() unreachable.
 #define TIME_SLICE                     5
-#define MINIMUM_SPLITTABLE_TIME_SLICE  6
+#define MINIMUM_SPLITTABLE_TIME_SLICE  2
 const double eSteadySpeed = 21.0 * 2222.0 / 1000.0;
 
 MR_Int32 Missile::ZMin() const

@@ -1,10 +1,10 @@
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.5)
 if(POLICY CMP0054)
-	cmake_policy(SET CMP0054 OLD)
+	cmake_policy(SET CMP0054 NEW)
 endif()
 if(POLICY CMP0059)
-	cmake_policy(SET CMP0059 OLD)
+	cmake_policy(SET CMP0059 NEW)
 endif()
 
 project(hoverrace CXX)
@@ -30,7 +30,7 @@ if(MSVC)
 	if(MSVC_VERSION LESS 1900)
 		message(FATAL_ERROR "Visual Studio 2015 (aka Visual Studio 14) or later is required.")
 	endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
 	execute_process(COMMAND ${CMAKE_CXX_COMPILER} --version
 		OUTPUT_VARIABLE CLANG_VERSION_OUT)
 	string(REGEX MATCH "clang version [0-9]+\\.[0-9]+" CLANG_VERSION_STRING
@@ -39,11 +39,6 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 		"${CLANG_VERSION_STRING}")
 
 	message(STATUS "Clang version: ${CLANG_VERSION}")
-
-	if(CLANG_VERSION VERSION_EQUAL 3.4 OR CLANG VERSION_GREATER 3.4)
-		message(WARNING "There are known issues when using Clang 3.4 or later.
-For more info: https://github.com/HoverRace/HoverRace/issues/262")
-	endif()
 endif()
 
 check_for_cxx11_compiler(CXX11_COMPILER)
@@ -57,18 +52,14 @@ endif()
 set(WITH_CHRONO_TIMESTAMP TRUE)
 
 # Set up the Boost dependency.
-# We only need to list the libraries that have libraries;
-# we assume that header-only libraries are available without checking.
-include(FindBoost)
 if(WIN32)
 	set(Boost_USE_STATIC_LIBS ON)
 else()
 	add_compile_options(-DBOOST_ALL_DYN_LINK)
 endif()
-set(Boost_USE_MULTITHREADED ON)
-set(BOOST_MIN_VER 1.54)
-find_package(Boost ${BOOST_MIN_VER} REQUIRED COMPONENTS
-	filesystem locale log system thread)
+set(BOOST_MIN_VER 1.70)
+find_package(Boost ${BOOST_MIN_VER} REQUIRED CONFIG COMPONENTS
+	filesystem locale log thread)
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 

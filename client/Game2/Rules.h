@@ -67,6 +67,18 @@ public:
 		}
 	}
 	void SetLaps(int laps) { rules["laps"] = laps; }
+
+	void SetBots(int bots) { rules["bots"] = bots; }
+
+	/// Number of computer-controlled racers; 0 when the rulebook omits it.
+	int GetBots() const
+	{
+		try {
+			return luabind::object_cast<int>(rules["bots"]);
+		} catch (luabind::cast_failed&) {
+			return 0;
+		}
+	}
 	const Model::GameOptions &GetGameOpts() const { return gameOpts; }
 	void SetGameOpts(const Model::GameOptions &gameOpts) { this->gameOpts = gameOpts; }
 

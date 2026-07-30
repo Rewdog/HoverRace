@@ -69,6 +69,11 @@ set_target_properties(hoverrace PROPERTIES
 	COTIRE_PCH_MEMORY_SCALING_FACTOR 300)
 cotire(hoverrace LANGUAGES CXX)
 
+# Track geometry exporter (used to feed the web build).
+add_executable(trackdump TrackDump/main.cpp)
+set_target_properties(trackdump PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(trackdump ${Boost_LIBRARIES} ${DEPS_LIBRARIES} hrengine)
+
 # Install convenience wrapper scripts.
 if(UNIX)
 	include(CopyWrapperScript)

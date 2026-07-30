@@ -269,7 +269,11 @@ void Hud::Layout()
 		east, north, -1, 1);
 	LayoutCorner(HudAlignment::SE, HudAlignment::SSE, HudAlignment::ESE,
 		east, south, -1, -1);
-	LayoutCorner(HudAlignment::SW, HudAlignment::SSE, HudAlignment::WSW,
+	// SSW, not SSE: every other corner pairs with its own side (NW/NNW,
+	// NE/NNE, SE/SSE). Using SSE here meant anything placed at SSW was never
+	// laid out at all, while SSE elements were positioned twice -- once by
+	// this corner and once by SE -- and fought over the result.
+	LayoutCorner(HudAlignment::SW, HudAlignment::SSW, HudAlignment::WSW,
 		west, south, 1, -1);
 
 	LayoutStacked(HudAlignment::N, midX, north, 0, 1);

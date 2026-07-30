@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <functional>
+
 namespace HoverRace {
 	namespace Client {
 		class Rulebook;
@@ -48,9 +50,15 @@ public:
 	std::shared_ptr<const Rulebook> Find(const std::string &name);
 
 private:
+	struct RulebookPtrLess {
+		bool operator()(const std::shared_ptr<const Rulebook> &a,
+			const std::shared_ptr<const Rulebook> &b) const noexcept {
+			return std::less<std::shared_ptr<const Rulebook>>()(a, b);
+		}
+	};
 	using sorted_t = std::set<
 		std::shared_ptr<const Rulebook>,
-		boost::less_pointees_t<std::shared_ptr<const Rulebook>>>;
+		RulebookPtrLess>;
 public:
 	using const_iterator = sorted_t::const_iterator;
 	using value_type = sorted_t::value_type;

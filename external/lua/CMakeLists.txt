@@ -5,7 +5,7 @@
 # Please note that the package source code is licensed under its own license.
 
 project ( lua C )
-cmake_minimum_required ( VERSION 2.8 )
+cmake_minimum_required ( VERSION 3.5 )
 if(FALSE)  # HoverRace: Handling packaging in parent project.
 include ( cmake/dist.cmake )
 endif()  # HoverRace
